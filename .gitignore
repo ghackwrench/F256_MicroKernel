@@ -1,0 +1,7 @@
+*~
+*.bin
+labels.txt
+*.o
+*.map
+*.lst
+*.lbl

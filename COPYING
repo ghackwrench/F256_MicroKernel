@@ -1,0 +1,18 @@
+# This file is part of the TinyCore MicroKernel for the Foenix F256.
+# Copyright 2022, 2023 Jessie Oberreuter <Gadget@HackwrenchLabs.com>.
+# SPDX-License-Identifier: GPL-3.0-only
+
+NOTES:
+
+    To clarify, as with the Linux kernel, this copyright does not cover user
+    programs which simply use kernel services by normal system calls - this is
+    considered normal use of the kernel, and does not fall under the heading
+    of "derived work".  - Jessie Oberreuter
+
+    The fatfs folder contains unmodified code Copyright 2020 Frank van
+    den Hoef, Michael Steil <<mist64@mac.com>>. It is included in this
+    distribution for convenience.  The original code may be found in the
+    https://github.com/commanderx16/x16-rom project under dos/fat32.
+
+    The API interface files (docs/api.h and kernel/api.asm) may be included
+    in third party projects without affecting the licenses of those projects.

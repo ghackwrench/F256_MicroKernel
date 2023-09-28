@@ -1,0 +1,17 @@
+This file is part of the TinyCore MicroKernel for the Foenix F256.
+Copyright 2022, 2023 Jessie Oberreuter <Gadget@HackwrenchLabs.com>.
+SPDX-License-Identifier: GPL-3.0-only
+
+This project contains the code used to build the TinyCore MicroKernel
+as distributed with the F256K and F256Jr machines from Foenix Retro Systems.
+
+All code is Copyright 2022, 2023 Jessie Oberreuter <Gadget@HackwrenchLabs.com>
+with the following exceptions:
+
+    - The files in the fat32 directory (excepting f256jr.s, f256jr.cfg, and
+      the Makefile) are Copyright 2020 Frank van den Hoef and Michael Steil.
+
+    - interrupt_def.asm and TinyVicky_Def.asm are provided by Stafany Allaire
+      of Foenix Retro Systems, c256foenix.com.
+
+To build, you will need gnu make, 64tass, ca65, and ld65.
