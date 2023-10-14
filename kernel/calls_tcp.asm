@@ -194,7 +194,7 @@ _send
             beq     _out
             
           ; Send the packet
-            lda     #TCP_ACK
+            lda     #TCP_ACK|TCP_PSH
             jsr     tcp_reply
 
 _out
@@ -300,17 +300,6 @@ tcp_recv
             phx
             phy
 
-.if false
-        ldx io_ctrl
-        lda #2
-        sta io_ctrl
-        lda $c000+2*80+0
-        inc a
-        and #7
-        ora #48
-        sta $c000+2*80+0
-        stx io_ctrl
-.endif        
           ; Try to mount the TCP packet from the current event.
             jsr     packet_mount
            ;ldy     #NotTCP
@@ -342,7 +331,7 @@ tcp_recv
             jsr     tcp_dispatch
 
           ; Return the current socket state.
-            ldy     #tcp.header.flags
+            ldy     #tcp.state
             lda     (kernel.args.net.socket),y
             tay
             
@@ -356,24 +345,23 @@ _out
     
 
 tcp_close
-            sec
+            phx
+            phy
+
+          ; Send the packet
+            lda     #TCP_ACK|TCP_FIN
+            jsr     tcp_reply
+            clc
+
+            ply
+            plx
             rts
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Packet testing functions
 
 seq_is_valid
-.if false
-  phx
-  ldx io_ctrl
-  ldy #2
-  sty io_ctrl
-  lda #' '
-  sta $c000+80*2+1
-  stx io_ctrl
-  plx
-  clc
-.endif  
+  
         ; For now, just verify that it matches our last ack.
         ; Eventually, we should handle packets which straddle
         ; our latest ack.
@@ -497,18 +485,6 @@ tcp_reply
 
 tcp_queue
 
-.if false
-        ldx io_ctrl
-        lda #2
-        sta io_ctrl
-        lda $c000+2*80+2
-        inc a
-        and #7
-        ora #48
-        sta $c000+2*80+2
-        stx io_ctrl
-.endif
-
     ; kernel.args.net.socket contains the packet to send.
     ; We're running in the user map at the time this is called.
  
@@ -587,32 +563,12 @@ _loop       dey
             sta     kernel.net.packet.len,y
             
           ; Make the call
-            phx
-            ldx     io_ctrl
-            stz     io_ctrl
-            phx
             jsr     kernel.net.ipv4.tcp_send
-            plx
-            stx     io_ctrl
-            plx
 
           ; Switch back to the user's map
             stx     mmu_ctrl
             clc
 _out        
-.if false
-        php
-        ldx io_ctrl
-        lda #2
-        sta io_ctrl
-        lda $c000+2*80+3
-        adc #0
-        and #7
-        ora #48
-        sta $c000+2*80+3
-        stx io_ctrl
-        plp
-.endif
             rts
                    
 
@@ -676,13 +632,20 @@ _restore    pla
 ; Socket adjusting functions
 
 accept_ack
-          
-          ; A = # of ACK'ed bytes.
-            ldy     #tcp.header.ack+3
-            lda     (kernel.args.ptr),y
-            sec
+
+          ; A = expected ack (SEQ + pending)
+            clc
             ldy     #tcp.header.seq+3
-            sbc     (kernel.args.net.socket),y
+            lda     (kernel.args.net.socket),y
+            ldy     #tcp.tx_pending
+            adc     (kernel.args.net.socket),y
+
+          ; Compare it to their ACK.
+            ldy     #tcp.header.ack+3
+            cmp     (kernel.args.ptr),y
+
+          ; If it isn't a full ACK, ignore it.
+            bne     _done
 
           ; Remove ACK'd bytes from our tx_queue.
           ; TODO: handle incomplete ACKs
@@ -711,7 +674,7 @@ accept_ack
             lda     (kernel.args.ptr),y            
             ldy     #tcp.header.seq+0
             sta     (kernel.args.net.socket),y
-
+_done
             rts
 
 accept_seq
@@ -1111,6 +1074,7 @@ _8_fin
           ; least, we'll also close.
 
             lda     #STATE.FIN_WAIT_1
+        lda     #STATE.CLOSED
             sta     (kernel.args.net.socket),y
 
           ; ACK and close
@@ -1120,8 +1084,8 @@ _8_fin
 _done
           ; ACK
             lda     #TCP_ACK
-            jsr     tcp_reply
- rts
+;            jsr     tcp_reply
+; rts
           ; ACK
             lda     #TCP_ACK | TCP_PSH
             jmp     tcp_reply

@@ -69,29 +69,39 @@ zero
             rts
 
 free
-    ; Y = token to free
+    ; Y = event to free
     ; Thread safe
             pha
 
 _buf
+          ; If no page in buf, check ext, else free.
             lda     entry.buf,y
             beq     _ext
             jsr     kernel.page.free
 _ext            
+          ; If no page in ext, zero the event.
             lda     entry.ext,y
             beq     _zero
+
+          ; If ext==buf, we're done, zero the event.
             cmp     entry.buf
             beq     _zero
+
+          ; Ext contained a different page; free it.
             jsr     kernel.page.free
 
-_zero       jsr     zero
+_zero       
+          ; Zero out the event.
+            jsr     zero
 
+          ; Free the event.
             php
             sei
             lda     entries
             sta     entry.next,y
             sty     entries
             plp
+
             pla
             clc
             rts
@@ -117,15 +127,12 @@ _empty      plp
 
 enque
     ; Event offset in Y; always succeeds.
-    ; Thread lock is sufficient.
             php
             sei
             pha
-            inc     kernel.thread.lock
             lda     in
             sta     entry.next,y
             sty     in
-            dec     kernel.thread.lock
             pla
             plp
             dec     user.events.pending  ; Backwards for BIT.

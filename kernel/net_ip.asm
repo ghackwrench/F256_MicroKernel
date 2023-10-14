@@ -40,15 +40,6 @@ ip_addr .fill       4
         
 ip_accept
 
-        inc     count
-        ldy     count
-        lda     #0
-        jsr     dprint
-
-      ; Verify the header
-        jsr     ip_check
-        bcs     _out
-
       ; Ensure that odd-length packets
       ; are zero padded to an even length
 
@@ -56,9 +47,35 @@ ip_accept
         ldy     len
         sta     (buf),y
 
+      ; If this is an out-bound packet,
+      ; skip the header check.
+        ldy     pkt
+        lda     kernel.net.packet.dev,y
+        beq     ip_out
+
+      ; Verify the header
+        jsr     ip_check
+        bcs     _out
+
         jmp     ip_dispatch
 
 _out    rts
+
+ip_out
+        ldy     #ip.proto
+        lda     (buf),y
+
+        cmp     #6  ; TCP
+        beq     _tcp
+
+        cmp     #17 ; UDP
+        beq     _udp
+        
+        sec
+_out    rts
+
+_tcp    jmp     tcp_send_buf
+_udp    jmp     udp_send_buf
 
         
 ip_dispatch
@@ -292,11 +309,9 @@ ip_send
         jsr     pkt_dump
 
       ; Send the packet
-        ldy     pkt
-        ldx     packet.dev,y
-        tya  
-        jsr     kernel.device.dev.send     
-        rts
+        lda     pkt
+        ldx     kernel.net.ipv4.router
+        jmp     kernel.device.dev.send     
        
         .cpu    "w65c02"
 pkt_dump rts

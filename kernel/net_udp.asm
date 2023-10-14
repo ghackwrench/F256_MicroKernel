@@ -82,22 +82,11 @@ _echo
 udp_send
     ; y->packet token
     ; Should probably queue instead of locking.
-    
-        inc     kernel.thread.lock  ; Reserve the ipv4 functions
-
-        sty     kernel.net.pkt
+        
         lda     #0
-        sta     kernel.net.buf+0
-        sta     kernel.net.alt+0
-        lda     kernel.net.packet.buf,y
-        sta     kernel.net.buf+1
-        sta     kernel.net.alt+1
-        lda     kernel.net.packet.len,y
-        sta     kernel.net.len
-        jsr     kernel.net.ipv4.udp_send_buf
+        sta     kernel.net.packet.dev,y
+        jmp     kernel.net.accept
 
-        dec     kernel.thread.lock
-        rts
 
 udp_send_buf
 

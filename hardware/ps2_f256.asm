@@ -39,13 +39,11 @@ init
             txa
             jsr     hardware.ps2.auto.init
             
-            inc     kernel.thread.lock
             lda     #<vectors
             sta     kernel.src+0
             lda     #>vectors
             sta     kernel.src+1
             jsr     kernel.device.install
-            dec     kernel.thread.lock
 
           ; Associate ourselves with the interrupt
             txa

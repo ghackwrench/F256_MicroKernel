@@ -175,6 +175,7 @@ enque
     ; X = queue, Y = token
 
             pha
+
             php
             sei
             lda     tail,x
@@ -182,6 +183,7 @@ enque
             tya
             sta     tail,x
             plp
+
             pla
             clc
             rts                        

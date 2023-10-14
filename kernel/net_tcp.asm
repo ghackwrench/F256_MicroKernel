@@ -21,8 +21,6 @@ check   .fill   2       ; checksum (big endian)
 urgent  .fill   2       ; offset to urgent data (not used)
 data    .ends        
 
-
-
         .section    kmem
 length  .word       ?
         .send        
@@ -36,8 +34,6 @@ tcp_accept
         jsr     check_sum
         bcs     _drop
         
-        ;jsr     pkt_dump
-
       ; Queue and event.
         jsr     kernel.event.alloc
         bcs     _drop    ; TODO: beep or something
@@ -58,40 +54,15 @@ tcp_accept
         jmp     kernel.token.free   
                
 _drop
-
-.if false
-        ldy     io_ctrl
-        lda     #2
-        sta     io_ctrl
-        inc     $c000+80*2+12
-        sty     io_ctrl 
-.endif
-        
         sec
         rts
 
 tcp_send
+
     ; y->packet token
-    ; Should probably queue instead of locking.
-    
-        lda     kernel.net.ipv4.router
-        sta     kernel.net.packet.dev,y
-
-        inc     kernel.thread.lock  ; Reserve the ipv4 functions
-
-        sty     kernel.net.pkt
         lda     #0
-        sta     kernel.net.buf+0
-        sta     kernel.net.alt+0
-        lda     kernel.net.packet.buf,y
-        sta     kernel.net.buf+1
-        sta     kernel.net.alt+1
-        lda     kernel.net.packet.len,y
-        sta     kernel.net.len
-        jsr     kernel.net.ipv4.tcp_send_buf
-
-        dec     kernel.thread.lock
-        rts
+        sta     kernel.net.packet.dev,y
+        jmp     kernel.net.accept
 
 tcp_send_buf
 
@@ -116,9 +87,9 @@ tcp_send_buf
 
       ; Compute the checksum over the packet data.
         jsr     tcp_checksum
-        
-        lda     #7
-        jsr     print_sum
+
+        ;lda     #7
+        ;jsr     print_sum
 
       ; Store the one's complement as the new checksum.
         ldy     #tcp.check

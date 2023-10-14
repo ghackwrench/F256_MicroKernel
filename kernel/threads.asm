@@ -19,6 +19,7 @@ lock    .byte   ?
 init
         stz     running
         stz     start
+        stz     lock
         rts        
 
 service

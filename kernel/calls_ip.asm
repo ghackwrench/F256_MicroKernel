@@ -44,7 +44,9 @@ ip_init
         ldy     #kernel.net.ipv4.ip.id 
         sta     (kernel.args.net.socket),y
         iny
+        lda     #%0100_0000  ; Don't fragment
         sta     (kernel.args.net.socket),y
+        lda     #0
         iny
         sta     (kernel.args.net.socket),y
         iny
@@ -54,7 +56,7 @@ ip_init
         
       ; ttl
         ldy     #kernel.net.ipv4.ip.ttl
-        lda     #40
+        lda     #$40
         sta     (kernel.args.net.socket),y
         
       ; src_ip

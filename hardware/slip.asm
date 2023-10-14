@@ -215,10 +215,7 @@ _end
         lda     self.rx_len,x
         sta     kernel.net.packet.len,y
 
-        tya
-        ldy     self.this,x
         jsr     kernel.net.accept
-        ldx     self.this,y
         stz     self.rx_buf,x
         stz     self.rx_len,x
         bra     _done
