@@ -392,8 +392,8 @@ seq_is_valid
             lda     (kernel.args.ptr),y
             ldy     #tcp.header.ack+0
             sbc     (kernel.args.net.socket),y
-            bcs     _drop   ; packet from the future, drop
-            bcc     _ack    ; TODO: handle overlap 
+            bpl     _drop   ; packet from the future, drop
+            bmi     _ack    ; TODO: handle overlap 
 
           ; If the packet is ahead of us, ack or drop
             bpl     _ack
