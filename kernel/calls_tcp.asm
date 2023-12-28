@@ -123,9 +123,9 @@ _out
             
 _init       .byte   $00, $00, $00, $00      ; Initial sequence
             .byte   $00, $00, $00, $00      ; Initial ack
-            .byte   $60, $02, $00, $60      ; One option (MSS), SYN, WIN
+            .byte   $60, $02, $00, $d0      ; One option (MSS), SYN, WIN
             .byte   $00, $00, $00, $00      ; Checksum, urgent
-            .byte   $02, $04, $00, $60      ; MSS = 208 $D0
+            .byte   $02, $04, $00, $d0      ; MSS = 208 $D0
 
 
 
@@ -366,19 +366,34 @@ seq_is_valid
         ; Eventually, we should handle packets which straddle
         ; our latest ack.
 
-          ; Test the MSB of packet.seq - socket.ack.
-            sec          
+          ; Quick test packet.seq - socket.ack.
+          ; If the numbers match, this packet is acceptable.
+            ldy     #tcp.header.seq+3
+            lda     (kernel.args.ptr),y
+            ldy     #tcp.header.ack+3
+            cmp     (kernel.args.net.socket),y
+            beq     _ok
+
+          ; Full test packet.seq - socket.ack.
+            sec
             ldy     #tcp.header.seq+3
             lda     (kernel.args.ptr),y
             ldy     #tcp.header.ack+3
             sbc     (kernel.args.net.socket),y
-
-          ; If the numbers match, this packet is acceptable.
-            clc
-            beq     _done
-
-  bpl   _drop   ; packet from the future, drop
-  bmi   _ack    ; TODO: handle overlap 
+            ldy     #tcp.header.seq+2
+            lda     (kernel.args.ptr),y
+            ldy     #tcp.header.ack+2
+            sbc     (kernel.args.net.socket),y
+            ldy     #tcp.header.seq+1
+            lda     (kernel.args.ptr),y
+            ldy     #tcp.header.ack+1
+            sbc     (kernel.args.net.socket),y
+            ldy     #tcp.header.seq+0
+            lda     (kernel.args.ptr),y
+            ldy     #tcp.header.ack+0
+            sbc     (kernel.args.net.socket),y
+            bcs     _drop   ; packet from the future, drop
+            bcc     _ack    ; TODO: handle overlap 
 
           ; If the packet is ahead of us, ack or drop
             bpl     _ack
@@ -400,7 +415,9 @@ _ack
             sec
 _done
             rts
-
+_ok
+            clc
+            rts
 _drop
             sec
             rts

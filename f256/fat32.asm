@@ -579,7 +579,11 @@ close
 
           ; Perform the close
             call    fat.file_close
+            bcc     _error
 
+          ; Mark the device as no longer busy
+            jsr     led_off
+            
 _error
           ; Free the context
             lda     kernel.stream.entry.channel,x 
@@ -588,9 +592,6 @@ _free
           ; Free the stream
             txa
             jsr     kernel.stream.free
-            
-          ; Mark the device as no longer busy
-            jsr     led_off
             
           ; Return the event
             clc

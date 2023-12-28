@@ -156,6 +156,10 @@ send
             eor     released
             sta     kernel.event.entry.type,y
             
+          ; Set the keyboard ID:
+            lda     #1
+            sta     kernel.event.entry.key.keyboard
+
           ; Send the event
             jmp     kernel.event.enque
 _done
