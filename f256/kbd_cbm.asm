@@ -397,6 +397,8 @@ _l2
         cpy     #_emap
         bne     _l2
         ply
+        cmp     #$80
+        ror     flags
         bra     _queue
 _found
         lda     _map+1,y
