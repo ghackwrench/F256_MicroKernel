@@ -81,6 +81,7 @@ jr.bin: Makefile $(Jr) $(KERNEL) fat32.bin
 	dd if=$@ of=3e.bin ibs=8192 obs=8192 skip=3 count=1
 	dd if=$@ of=3f.bin ibs=8192 obs=8192 skip=5 count=1
 	cat 3b.bin 3c.bin 3d.bin 3e.bin 3f.bin >$@
+	cp 3b.bin 3c.bin 3d.bin 3e.bin 3f.bin bin
 
 
 fat32.bin: fat32
