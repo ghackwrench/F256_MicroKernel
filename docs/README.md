@@ -45,7 +45,7 @@ The kernel assigns the DIP switches as follows:
 3. Enable SLIP based networking
 4. Feather board installed (eg Huzzah 8266 WiFi)
 5. SIDs are installed
-6. F256: CBM keyboard installed; F256k: audio expansion installed.
+6. F256: CBM keyboard installed; F256k: reduced TCP window size.
 7. ON: 640x480, OFF: 640x400 (_not yet implemented_)
 8. Enable gamma color correction
 
@@ -1025,7 +1025,7 @@ Schedules a timer on either the FRAME interrupt or RTC seconds interrupt.
 
 **Input**
 
-* **kernel.args.timer.units** selects the queueu to schedule: **kernel.args.timer.FRAME** or **kernel.args.timer.SECONDS**.  ORing with **kernel.args.timer.QUERY** causes the call to return the current value of the given counter without scheduling an event.
+* **kernel.args.timer.units** selects the queueu to schedule: **kernel.args.timer.FRAMES** or **kernel.args.timer.SECONDS**.  ORing with **kernel.args.timer.QUERY** causes the call to return the current value of the given counter without scheduling an event.
 * **kernel.args.timer.absolute** contains the time value at which the kernel will queue the event.
 * **kernel.args.timer.cookie** contains the cookie to associate with the event once scheduled**
 
