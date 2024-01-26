@@ -1008,6 +1008,7 @@ Returns the current time from the RTC.
 * **kernel.args.buflen** contains the number of bytes to copy (should be size of time_t)
 
 **Output**
+
 User's buffer is populated: 
 
 * **century** contains the two digit century in BCD.
