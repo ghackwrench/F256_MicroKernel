@@ -1004,19 +1004,20 @@ Copies the user provided text buffer to the screen (from top to bottom) starting
 Returns the current time from the RTC.
 
 **Input**
-
-None.
+* **kernel.args.buf** points to a user time_t buffer.
+* **kernel.args.buflen** contains the number of bytes to copy (should be size of time_t)
 
 **Output**
+User's buffer is populated: 
 
-* **kernel.args.century** contains the two digit century in BCD.
-* **kernel.args.year** contains the two digit year of the century in BCD.
-* **kernel.args.month** contains the two digit month (1-12) in BCD.
-* **kernel.args.day** contains the two digit day of the month in BCD.
-* **kernel.args.hours** contains the two digit hour (0-23) in BCD.
-* **kernel.args.minutes** contains the two digit minute (0-59) in BCD.
-* **kernel.args.seconds** contains the two digit second (0-60) in BCD.
-* **kernel.args.centis** contains the two digit centi-second in BCD.
+* **century** contains the two digit century in BCD.
+* **year** contains the two digit year of the century in BCD.
+* **month** contains the two digit month (1-12) in BCD.
+* **day** contains the two digit day of the month in BCD.
+* **hours** contains the two digit hour (0-23) in BCD.
+* **minutes** contains the two digit minute (0-59) in BCD.
+* **seconds** contains the two digit second (0-60) in BCD.
+* **centis** contains the two digit centi-second in BCD.
 
 
 ### Clock.SetTimer
