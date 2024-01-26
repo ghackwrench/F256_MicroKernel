@@ -1005,7 +1005,7 @@ Returns the current time from the RTC.
 
 **Input**
 * **kernel.args.buf** points to a user time_t buffer.
-* **kernel.args.buflen** contains the number of bytes to copy (should be size of time_t)
+* **kernel.args.buflen** contains the number of bytes to copy (should be size of time_t).
 
 **Output**
 
