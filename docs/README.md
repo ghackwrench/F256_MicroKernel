@@ -30,7 +30,7 @@ Kernel binaries may be optained from either of the following repos:
 *  https://github.com/ghackwrench/F256_MicroKernel
 *  https://github.com/FoenixRetro
 
-The 'ghackwrench' repo contains the latest release.  The 'paulscottrobson' repo contains the latest version verified to work with SuperBASIC.
+The 'ghackwrench' repo contains the latest release.  The 'FoenixRetro' repo contains the most recently collected set of flash blocks.
 
 ### Flashing the Kernel
 
