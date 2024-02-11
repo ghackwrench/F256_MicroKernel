@@ -27,8 +27,8 @@ There's a lot of love in here; I hope you will enjoy using it as much as I have 
 
 Kernel binaries may be optained from either of the following repos: 
 
-*  https://github.com/ghackwrench/F256_Jr_Kernel_DOS
-*  https://github.com/paulscottrobson/superbasic
+*  https://github.com/ghackwrench/F256_MicroKernel
+*  https://github.com/FoenixRetro
 
 The 'ghackwrench' repo contains the latest release.  The 'paulscottrobson' repo contains the latest version verified to work with SuperBASIC.
 
