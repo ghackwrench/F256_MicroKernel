@@ -106,7 +106,40 @@ _loop       stz     irqs,x
             plx
             pla
             clc
-_dummy      rts
+            rts
+
+_dummy
+    ; Queue an event for the interrupt or mask the interrupt.
+    ; Does NOT attempt to retry if the queue is full.
+    ; The kernel will clear the pending flag either way.
+    ; Unfortunately, there's no clean way to recover from this type
+    ; of failure ... users will just need to set a watchdog timer.
+
+            tax     ; x = bit value
+            tya     ; a = group
+
+          ; Allocate an event or bail.
+            jsr     kernel.event.alloc
+            bcs +
+
+          ; Set group and index.
+            sta     kernel.event.entry.irq.group,y
+            txa
+            sta     kernel.event.entry.irq.bitval,y
+
+          ; Set event type.
+            lda     #kernel.event.irq.IRQ
+            sta     kernel.event.entry.type,y
+
+          ; Queue.
+            jmp     kernel.event.enque
+
+          ; Kernel is out of events; mask the interrupt.
+          + tay     ; y = group
+            txa     ; a = bit value
+            ora     INT_MASK_REG0,y
+            sta     INT_MASK_REG0,y
+            rts
 
 dispatch:
             
@@ -121,6 +154,7 @@ _reg0
             lda     bit,y           ; 1, 2, 4, ...
             sta     INT_PENDING_REG0
             ldx     irq0,y
+            ldy     #0      ; group for userland handlers.
             jsr     kernel.device.dev.data
             bra     _reg0
 
@@ -135,6 +169,7 @@ _reg1
             lda     bit,b,y
             sta     INT_PENDING_REG1 ; try moving after
             ldx     irq1,y
+            ldy     #1      ; group for userland handlers.
             jsr     kernel.device.dev.data
             bra     _reg1
 
