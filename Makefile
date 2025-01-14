@@ -52,6 +52,7 @@ Jr	= \
 	f256/jr.asm \
 	f256/kbd_cbm.asm \
 	f256/kbd_f256k.asm \
+	f256/kbd_f256k2.asm \
 	f256/keyboard.asm \
 	f256/serial.asm \
 	f256/TinyVicky_Def.asm \

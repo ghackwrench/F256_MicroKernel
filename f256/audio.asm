@@ -148,7 +148,7 @@ INIT_CODEC stz  $1
             sta CODEC_CTRL ;
             jsr CODEC_WAIT_FINISH
             ; LDA #%0010101000000011       ;R21 - Enable All the Analog In
-            lda #%00000011
+            lda #%00011111
             sta CODEC_LOW
             lda #%00101010
             sta CODEC_HI

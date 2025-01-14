@@ -175,10 +175,10 @@ _out
             rts
 _msg
             .text   "Foenix F256 by Stefany Allaire", $0a
-            .text   "https://c256foenix.com/f256-jr",$0a
+            .text   "https://c256foenix.com/",$0a
             .text   $0a
             .text   "TinyCore MicroKernel", $0a
-            .text   "Copyright 2022 Jessie Oberreuter", $0a
+            .text   "Copyright 2025 Jessie Oberreuter", $0a
             .text   "Gadget@HackwrenchLabs.com",$0a
             .text   "F256 Edition built ", DATE_STR
             .text   $0a, $0a, $00
