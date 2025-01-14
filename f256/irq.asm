@@ -112,8 +112,11 @@ dispatch:
             
 _reg0       
             stz     $1
-            ldx     INT_PENDING_REG0
+            lda     INT_MASK_REG0
+            eor     #$ff
+            and     INT_PENDING_REG0
             beq     _reg1
+            tax
             ldy     first_bit,x     ; 0..7
             lda     bit,y           ; 1, 2, 4, ...
             sta     INT_PENDING_REG0
@@ -123,8 +126,11 @@ _reg0
 
 _reg1       
             stz     $1
-            ldx     INT_PENDING_REG1
+            lda     INT_MASK_REG1
+            eor     #$ff
+            and     INT_PENDING_REG1
             beq     _reg2
+            tax
             ldy     first_bit,b,x
             lda     bit,b,y
             sta     INT_PENDING_REG1 ; try moving after
