@@ -63,10 +63,8 @@ _cbm
 _jr
             jmp     jr_kbd.init
                                 ; NEW STUFF - September 18th, 2024
-_k2         lda     $DDC0       ; If the Unit is a K2, Then let's figure out which Keyboard is installed
-            and     #$80
-            cmp     #$80        ; if the bit[7] is 1, then it is a Traditional Mechanical Keyboard, so it is like a F256K
-            beq     _jr         ;
+_k2         lda     $DDC1       ; If the Unit is a K2, Then let's figure out which Keyboard is installed
+            bmi     _jr         ; if the bit[7] is 1, then it is a Traditional Mechanical Keyboard, so it is like a F256K
                                 ; Otherwise, it is the optical Keyboard
             jmp     k2_kbd.init
 
