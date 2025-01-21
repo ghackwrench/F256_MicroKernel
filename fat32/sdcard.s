@@ -76,6 +76,15 @@ deselect:
 
 	jmp spi_read
 
+flush:
+        phy
+        ldy #20
+@1:     jsr spi_read
+        dey
+        bne @1
+        ply
+        rts
+
 ;-----------------------------------------------------------------------------
 ; select card
 ;
@@ -105,7 +114,6 @@ spi_read:
 @1:	bit SPI_CTRL	; 4
 	bmi @1		; 2 + 1 if branch
 	lda SPI_DATA	; 4
-        jsr debug_read
 	rts		; 6
 			; >= 22 cycles
 
@@ -116,7 +124,6 @@ spi_read:
 @1:	bit SPI_CTRL	; 4
 	bmi l1		; 2 + 1 if branch
 	lda SPI_DATA	; 4
-	jsr debug_read
 .endmacro
 
 ;-----------------------------------------------------------------------------
@@ -509,6 +516,7 @@ sdcard_write_sector:
 	jsr spi_write
 
 	; Success
+	jsr flush
 	jsr deselect
 	sec
 	rts
