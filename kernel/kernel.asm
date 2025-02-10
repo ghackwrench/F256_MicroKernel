@@ -60,10 +60,10 @@ init
  ;bra _log
         ; Run the first processes
 
-          ; If dip1 is set, try to start a binary in low RAM.
+          ; If dip1 is on, try to start a binary in low RAM.
             jsr     start_ram
             
-          ; If we're still here, search the expansion memory.
+          ; If dip1 is off, check for a binary on the cartridge.
             jsr     start_expansion
             
           ; If we're still here, search the flash
@@ -97,13 +97,18 @@ _done       rts
 _start      jmp     kernel.flash.start_rom
 
 start_expansion
+          ; Only scan the cart if DIP1 is off.
+            jsr     platform.dips.read
+            and     #platform.dips.BOOT_MENU
+            bne     _done
+            
             ldx     #$80
 _loop       jsr     kernel.flash.is_rom
             bcc     _found
             inx
             cpx     #$a0
             bne     _loop
-            rts
+_done       rts
 _found      jmp     kernel.flash.start_rom
 
 start_flash
