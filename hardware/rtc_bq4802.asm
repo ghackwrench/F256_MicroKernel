@@ -79,11 +79,21 @@ init
         stz     io_ctrl
         lda     #%0000_1010 ; IRQ every 1/64th of a second.
         sta     rtc.RATES
-        lda     #$c0        ; Alarm mask (all $c0 -> every second)
+
+      ; Alarm mask (all $c0 -> every second)
+        lda     #$c0
+        ora     rtc.SECONDS_AL
         sta     rtc.SECONDS_AL
+        lda     #$c0
+        ora     rtc.MINUTES_AL
         sta     rtc.MINUTES_AL
+        lda     #$c0
+        ora     rtc.HOURS_AL
         sta     rtc.HOURS_AL
+        lda     #$c0
+        ora     rtc.DAY_AL
         sta     rtc.DAY_AL
+
         lda     #4          ; PIE (interval alarm)
         ora     #8          ; AEI (time alarm)
         sta     rtc.ENABLES
