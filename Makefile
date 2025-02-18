@@ -50,6 +50,7 @@ Jr	= \
 	f256/interrupt_def.asm \
 	f256/irq.asm \
 	f256/jr.asm \
+	f256/k2_lcd.asm \
 	f256/kbd_cbm.asm \
 	f256/kbd_f256k.asm \
 	f256/kbd_f256k2.asm \

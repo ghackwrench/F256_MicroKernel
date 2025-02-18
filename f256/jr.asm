@@ -212,6 +212,9 @@ _zero   stz     Stack,x
         cmp     magic
         bne     upload
 
+      ; Init LCD (if there is one)
+        jsr     k2lcd.init      ; Go Init the LCD (if it is a K2 Optical Keyboard)
+
       ; Init the IRQs and enable
         jsr     irq.init
 
