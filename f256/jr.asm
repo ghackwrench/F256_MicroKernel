@@ -324,6 +324,33 @@ hw_rti
 
 puts        jmp     platform.console.puts
 
+board       .struct     id, codec
+mid         .byte       \id
+codec_init  .byte       \codec
+size        .ends
+            
+boards      .dstruct    board, $02,%00000011  ; jr/mmu
+_2          .dstruct    board, $12,%00010011  ; k/mmu
+_3          .dstruct    board, $22,%00011101  ; jr2/mmu
+_4          .dstruct    board, $11,%00011111  ; k2/mmu
+boards_end  = * - boards           
+
+get_board
+    ; OUT: X -> offset in boards table or carry set on error.
+            clc
+            ldx     #0
+          - lda     boards.mid,x
+            eor     $d6a7   ; MID
+            and     #$3f
+            beq +
+            txa
+            adc     #board.size
+            tax
+            cpx     #boards_end
+            bne -                     
+          + rts
+
+
         .send
         .endn
 

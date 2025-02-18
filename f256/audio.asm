@@ -138,7 +138,14 @@ _ilen   = * - _itab
 
 
 qnd
-INIT_CODEC stz  $1
+INIT_CODEC 
+    ; Sorry this is a little sloppy.  At the time, I was going in circles 
+    ; only to eventually find that my board had a hardware problem...
+    ; Might be nice to clean up the mess someday.  Until then, here's
+    ; where we're doing the init...
+    
+            stz  $1
+
             ;                LDA #%00011010_00000000     ;R13 - Turn On Headphones
             lda #%00000000
             sta CODEC_LOW
@@ -148,7 +155,7 @@ INIT_CODEC stz  $1
             sta CODEC_CTRL ;
             jsr CODEC_WAIT_FINISH
             ; LDA #%0010101000000011       ;R21 - Enable All the Analog In
-            lda #%00011111
+            jsr lines_for_board
             sta CODEC_LOW
             lda #%00101010
             sta CODEC_HI
@@ -208,6 +215,19 @@ CODEC_Not_Finished:
 CODEC_LOW        = $D620
 CODEC_HI         = $D621
 CODEC_CTRL       = $D622
+
+lines_for_board
+    ; OUT:  A = aux input bits for the identified board.
+
+            phx
+            jsr     get_board
+            lda     boards.codec_init,x
+            plx
+
+            bcc +
+            lda     #1  ; minimal safe input.
+            clc
+          + rts
 
 
 pjw_psg     .namespace
