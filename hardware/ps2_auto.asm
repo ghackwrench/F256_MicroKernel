@@ -111,7 +111,7 @@ _full_init
           ; Schedule an init
             lda     #wait.init
             sta     self.wait_state,x
-            lda     #20
+            lda     #40
             jsr     kernel.delay.insert
 
 _out        
