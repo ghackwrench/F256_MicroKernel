@@ -190,7 +190,7 @@ status      .byte       ?   ; last drive status
 
             .section    kernel2
 
-IEC_DEBUG = true
+IEC_DEBUG = false
 DBG_CALL    .macro routine
             .if IEC_DEBUG
                 jsr \routine
