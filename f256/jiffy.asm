@@ -185,14 +185,14 @@ _rev_loop
             .endproc
 
 detect      .proc
-            ; just return if not running on an X2 core as the timings will be off
+            ; just return if not running on an X1 core as the timings will be off
             bit     $d6a7
-            bmi     _detect
+            bpl     _detect
             rts
 
 _detect
             jsr     platform.iec.port.assert_CLOCK
-            ; TODO: measure with non jiffy drive to see if this matches 400us at 12MHz
+            ; TODO: measure with non jiffy drive to see if this matches 400us at 6MHz
             ldy     #61
 _loop
             jsr     platform.iec.port.read_DATA
