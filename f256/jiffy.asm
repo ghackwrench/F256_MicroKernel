@@ -9,11 +9,34 @@ jiffy       .namespace
             .section    kernel2
 
             .with platform.iec
+
+            ; Screen buffer output debugging
 JIFFY_DEBUG = IEC_DEBUG
+
+            ; To debug RX/TX timings you can enable SREQ toggling
+            ; on bit timings
+TX_DEBUG    = false
+RX_DEBUG    = false
+
+MACHINE_ID  = $d6a7
+TIMEOUT     = 255
+
 DBG_CALL    .macro routine
             .if JIFFY_DEBUG
             jsr \routine
             .endif
+            .endm
+
+delay_y     .macro  x1_delay, x2_delay
+            ldy     #\x1_delay
+            bit     MACHINE_ID
+            bpl     _delay_sel
+            ldy     #\x2_delay
+_delay_sel
+            nop
+            nop
+_delay      dey
+            bne     _delay
             .endm
 
 init        .proc
@@ -38,6 +61,7 @@ tx_low
             .byte   $f0, $b0, $e0, $a0, $70, $30, $60, $20
             .byte   $d0, $90, $c0, $80, $50, $10, $40, $00
 
+            ; ------------------------------------------- Jiffy send --------
 send        .proc
             ; A = byte
             ; Assumes we are in the sending state:
@@ -46,6 +70,16 @@ send        .proc
             ; prepare the bits to be sent so we can push them to IEC output
             ; efficiently during the transfer--which is timing critical
             phx
+            phy
+
+            .if JIFFY_DEBUG
+            pha
+            lda     #$0e ; blue
+            jsr     debug_set_color
+            pla
+            jsr     debug_write
+            .endif
+
             pha
             lsr     a
             lsr     a
@@ -60,68 +94,139 @@ send        .proc
             lda     tx_low,x
             ora     self.temp
 
-            ; Jiffy: wait for device to release DATA, allow interrupts while waiting
+            ; Wait for device to release DATA, allow interrupts while waiting
             cli
+            ldx     #TIMEOUT
 _wait
-            jsr     platform.iec.port.test_DATA
+            ; Is this enough waiting, are there slower drives? This may be a
+            ; situation where having this interrupt driven might be good to
+            ; guarantee correct timings, aligned to the drives internal clock
+            jsr     platform.iec.port.read_DATA
             bcs     _ready
+            dex
+            bne     _wait
 
-            jsr     sleep_20us
-            bra     _wait
+            ; error -- data not being asserted by device
+            ; TODO: follow up on error handling
+            ; Clock still being asserted
+            ply
+            plx
+            sec
+            rts
 
 _ready
             sei
-            ldx     #4
             ; Release CLOCK for 11-13 usecs to indicate start of transfer.
-            jsr     platform.iec.port.release_CLOCK
+
+            ;delay_y 1,6
+            ;jsr     platform.iec.port.release_CLOCK
+            .port.release IEC_CLK_o
 
             ; Timing now is critical, bit timings in usec after CLOCK release:
             ; (10, 20, 31, 41) send
-            jsr     sleep_5us
+            delay_y 9,23
 _loop
+            pha
+            and     #$03
+            .if TX_DEBUG
+            ora     #(port.IEC_ATN_o)
+            .else
+            ora     #(port.IEC_SREQ_o | port.IEC_ATN_o)
+            .endif
+            sta     port.IEC_OUTPUT_PORT
+            delay_y 10,26
+            pla
+            lsr     a
+            lsr     a
+
             pha
             and     #$03
             ora     #(port.IEC_SREQ_o | port.IEC_ATN_o)
             sta     port.IEC_OUTPUT_PORT
-            jsr     sleep_10us
-
+            delay_y 8,23
             pla
             lsr     a
             lsr     a
-            dex
-            bne     _loop
+
+            pha
+            and     #$03
+            .if TX_DEBUG
+            ora     #(port.IEC_ATN_o)
+            .else
+            ora     #(port.IEC_SREQ_o | port.IEC_ATN_o)
+            .endif
+            sta     port.IEC_OUTPUT_PORT
+            delay_y 8,23
+            pla
+            lsr     a
+            lsr     a
+
+            pha
+            and     #$03
+            ora     #(port.IEC_SREQ_o | port.IEC_ATN_o)
+            sta     port.IEC_OUTPUT_PORT
+            delay_y 10,26
+            pla
+            lsr     a
+            lsr     a
 
             bit     platform.iec.self.eoi_pending
             bpl     _no_eoi
 _eoi
-            jsr     platform.iec.port.release_CLOCK ; signal EOI
+            ; staus: EOI
+            .if TX_DEBUG
+            lda     #(port.IEC_ATN_o | port.IEC_DATA_o | port.IEC_CLK_o)
+            .else
+            lda     #(port.IEC_ATN_o | port.IEC_SREQ_o | port.IEC_DATA_o | port.IEC_CLK_o)
+            .endif
+            bra     _send_status
 _no_eoi
-            jsr     platform.iec.port.release_DATA
-            ; TODO: verify timing
-            jsr     sleep_10us
+            ; status: OK
+            .if TX_DEBUG
+            lda     #(port.IEC_ATN_o | port.IEC_DATA_o)
+            .else
+            lda     #(port.IEC_ATN_o | port.IEC_SREQ_o | port.IEC_DATA_o)
+            .endif
+_send_status
+            sta     port.IEC_OUTPUT_PORT
+            delay_y 11,28
 
+            ; assert clock (in case it wasn't already), also release debug signal
+            ;lda     #(port.IEC_ATN_o | port.IEC_SREQ_o | port.IEC_DATA_o | port.IEC_CLK_o)
+            lda     #(port.IEC_ATN_o | port.IEC_SREQ_o | port.IEC_DATA_o)
+            sta     port.IEC_OUTPUT_PORT
+
+            delay_y 5,14
             jsr     platform.iec.port.read_DATA
             bcc     _ack
-            DBG_CALL     debug_error
+            ;DBG_CALL     debug_error
             bra     _end
 _ack
-            DBG_CALL     debug_ACK
+            ;DBG_CALL     debug_ACK
 _end
             jsr     platform.iec.port.assert_CLOCK  ; back to idle state asserting CLOCK
             jsr     sleep_20us
+
+            ply
             plx
+            ;lda     #$f1
+            ;DBG_CALL debug_set_color
             rts
             .endproc
 
+            ; ------------------------------------------- Jiffy receive -----
 receive     .proc
             ; (17, 30, 41, 54) receive
 
             ; Assume not EOI until proved otherwise
             stz     self.rx_eoi
+            lda     #$0d ; green
+            DBG_CALL debug_set_color
 
             ; Wait for the sender to have a byte
             stz     self.temp
             phx
+            phy
             ldx     #4
 
             ;cli
@@ -129,17 +234,28 @@ receive     .proc
 _wait1      jsr     platform.iec.port.read_CLOCK
             bcc     _wait1
 
-            jsr     sleep_20us  ; give the drive some time to catch up
-            jsr     sleep_20us  ; give the drive some time to catch up
+            delay_y 37,80
+
             ;sei
 
             ; Signal we are ready to receive
             jsr     platform.iec.port.release_DATA
 
-            jsr     sleep_4us
+            delay_y 4,16
+            nop
+            nop
+            ;nop
+            nop
             ; Clock in the bits, 2 at a time, keep the result in temp
 _jiffy_read
-            jsr     sleep_4us
+            delay_y 4,14
+            nop
+            nop
+            nop
+            nop
+            .if RX_DEBUG
+            .port.toggle IEC_SREQ_o
+            .endif
             lda     port.IEC_INPUT_PORT
             and     #$03
             asl     self.temp
@@ -150,17 +266,29 @@ _jiffy_read
             bne     _jiffy_read
 
             ; All bits transferred, now check data signal (EOI indication)
-            jsr     sleep_10us
+            delay_y 9,23
 
             jsr     platform.iec.port.assert_DATA
             jsr     platform.iec.port.read_CLOCK
+            .if RX_DEBUG
+            .port.toggle IEC_SREQ_o
+            .endif
+            cli
             bcc     _no_eoi
             ; Set the EOI flag.
             dec     self.rx_eoi
             DBG_CALL debug_last
+            ldy     #67
+            sty     $D6A8
+            stz     $D6A9
+            bra     _shuffle_bits
 _no_eoi
-            cli
+            sta     $D6A9
+            lsr     a
+            lsr     a
+            sta     $D6A8
 
+_shuffle_bits
             ; reshuffle bits to in the correct order
             lda     self.temp
             ldx     #8
@@ -172,8 +300,6 @@ _rev_loop
             bne     _rev_loop
             lda     self.temp
 
-            plx
-
             ;DBG_CALL debug_ACK
             DBG_CALL debug_write
 
@@ -181,67 +307,49 @@ _rev_loop
             clc
             bit     self.rx_eoi
             ora     #0
+
+            ply
+            plx
+
+            pha
+            lda     #$f1
+            ;DBG_CALL debug_set_color
+            pla
             rts
             .endproc
 
+            ; ------------------------------------------- Jiffy detection ---
 detect      .proc
-            ; just return if not running on an X1 core as the timings will be off
-            bit     $d6a7
-            bpl     _detect
-            rts
-
-_detect
+            phy
             jsr     platform.iec.port.assert_CLOCK
-            ; TODO: measure with non jiffy drive to see if this matches 400us at 6MHz
-            ldy     #61
+            ldy     #50
+            bit     MACHINE_ID
+            bpl     _loop
+            ldy     #120
 _loop
             jsr     platform.iec.port.read_DATA
             bcc     _detected
             dey
             bne     _loop
+            ply
             rts
 _detected
             ldy     #20
+            bit     MACHINE_ID
+            bpl     _wait_loop
+            ldy     #44
 _wait_loop
             jsr     platform.iec.port.read_DATA
             bcs     _out
             dey
             bne     _wait_loop
 _out
-            dec     self.jiffy ; 0 -> ff
+            sec
+            ror     self.jiffy ; 0 -> 80
+            ;dec     self.jiffy
+            ply
             rts
             .endproc
-
-
-            ; NB: the timing values need not to be taken literally;
-            ;     they have been manually adjusted to match Jiffy timings
-sleep_4us   .proc
-            phx
-            ldx     #4
-_loop       dex
-            bne     _loop
-            plx
-            rts
-            .endproc
-
-sleep_5us   .proc
-            phx
-            ldx     #6
-_loop       dex
-            bne     _loop
-            plx
-            rts
-            .endproc
-
-sleep_10us  .proc
-            phx
-            ldx     #7
-_loop       dex
-            bne     _loop
-            plx
-            rts
-            .endproc
-
 
             .endwith ; platform.iec
             .send ; kernel2

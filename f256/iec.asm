@@ -176,21 +176,26 @@ init        .proc
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Transaction routines
+IEC_DEBUG = false
 
             .section    dp  ; For rx_eoi, could be ,x
 self        .namespace
 eoi_pending .byte       ?
 rx_eoi      .fill       0   ; shared with mark
 mark        .byte       ?
+sleep20     .byte       ?
 jiffy       .byte       ?   ; jiffy support (0: no/not tested, <0: jiffy detected)
 temp        .byte       ?   ; bit assembly
 status      .byte       ?   ; last drive status
+            .if IEC_DEBUG
+col1        .byte       ?
+col2        .byte       ?
+            .endif
             .endn
             .send
 
             .section    kernel2
 
-IEC_DEBUG = false
 DBG_CALL    .macro routine
             .if IEC_DEBUG
                 jsr \routine
@@ -202,14 +207,16 @@ init
     ; Carry set on error.
 
             pha
-            lda     $d6a7   ; MID
+            lda     #20
+            bit     $d6a7   ; MID
             bpl     _iec_init
-            lda     #40
-            ;sta     self.sleep20
+            lda     #50
 _iec_init
+            sta     self.sleep20
             pla
             jsr     platform.iec.port.init
             DBG_CALL debug_init
+            jsr     platform.jiffy.init
 
           ; Bail if ATN and SRQ fail to float back up.
           ; We'll have a more thorough test when we send
@@ -387,7 +394,6 @@ send_common
           ; There must be at least 100us between bytes.
             jsr     sleep_100us
 
-            DBG_CALL debug_write
             jsr     platform.iec.port.read_ATN
             bcc     _not_jiffy
             bit     self.jiffy
@@ -395,6 +401,7 @@ send_common
             jmp     jiffy.send
 _not_jiffy
 
+            DBG_CALL debug_write
         ; Clever cheating
 
           ; Act as an ersatz listener to keep the other listeners busy
@@ -542,8 +549,7 @@ _done
 
 sleep_20us
             phx
-            ldx     #20
-            ;ldx     self.sleep20
+            ldx     self.sleep20
 _loop       dex
             bne     _loop
             plx
@@ -853,6 +859,10 @@ debug_init
             stz     screen+0
             inc     screen+0
             sta     screen+1
+            lda     #$f1
+            sta     self.col1
+            lda     #$1f
+            sta     self.col2
             pla
             rts
 
@@ -869,11 +879,11 @@ debug_write
 print_hex
             php
             pha
-            ;stz io_ctrl
-            ;jsr platform.iec.port.read_ATN
-            ;bcc _x
-            ;jsr     debug_print
-            ;bra     _done
+            stz io_ctrl
+            jsr platform.iec.port.read_ATN
+            bcc _x
+            jsr     debug_print
+            bra     _done
 _x
             phy
             jsr     _hex
@@ -954,6 +964,23 @@ debug_read  rts
             plp
             rts
 
+debug_set_color
+            pha
+            sta     self.col1
+            asl     a
+            asl     a
+            asl     a
+            asl     a
+            sta     self.col2
+            pla
+            lsr     a
+            lsr     a
+            lsr     a
+            lsr     a
+            ora     self.col2
+            sta     self.col2
+            rts
+
 debug_print
             phy
             ldy     #2
@@ -961,10 +988,10 @@ debug_print
             sta     (screen)
             ldy     #3
             sty     io_ctrl
-            lda     #$f1
+            lda     self.col1
             bit     read
             bpl     _setcol
-            lda     #$1f
+            lda     self.col2
 _setcol
             sta     (screen)
             stz     io_ctrl
