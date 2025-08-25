@@ -15,7 +15,7 @@ iec             .namespace
 port            .namespace
 
                 .section        kernel2 ; TODO: iec_code or somesuch
-                
+
 IEC_INPUT_PORT  = $D680 ; Read Only, this is the Value on the BUS
 ; IEC Input PORT
 ; Bit[0] IEC_DATA_i
@@ -56,7 +56,7 @@ assert_bit      .macro  BIT
                 pla
                 rts
                 .endm
-            
+
 release_bit     .macro  BIT
                 pha
                 lda     IEC_OUTPUT_PORT
@@ -64,6 +64,28 @@ release_bit     .macro  BIT
                 sta     IEC_OUTPUT_PORT
                 pla
                 rts
+                .endm
+
+assert          .macro  BITS
+                pha
+                lda     #platform.iec.port.\BITS
+                trb     platform.iec.port.IEC_OUTPUT_PORT
+                pla
+                .endm
+
+release         .macro  BITS
+                pha
+                lda     #platform.iec.port.\BITS
+                tsb     platform.iec.port.IEC_OUTPUT_PORT
+                pla
+                .endm
+
+toggle          .macro  BITS
+                pha
+                lda     #platform.iec.port.\BITS
+                trb     platform.iec.port.IEC_OUTPUT_PORT
+                tsb     platform.iec.port.IEC_OUTPUT_PORT
+                pla
                 .endm
 
 read_bit        .macro  BIT
@@ -76,7 +98,7 @@ _loop           lda     IEC_INPUT_PORT
                 pla
                 rts
                 .endm
-            
+
 bit_funcs       .segment    NAME,IN,OUT
 read_\NAME
                 .read_bit       \IN
@@ -85,7 +107,7 @@ assert_\NAME
 release_\NAME
                 .release_bit    \OUT
                 .endm
-                
+
     .bit_funcs  SREQ,   IEC_SREQ_i, IEC_SREQ_o
     .bit_funcs  ATN,    IEC_ATN_i,  IEC_ATN_o
     .bit_funcs  CLOCK,  IEC_CLK_i,  IEC_CLK_o
@@ -103,29 +125,29 @@ test_DATA   .proc
 
           ; Grab the current output state.
             ldx     IEC_OUTPUT_PORT
-            
+
           ; Prepare to release DATA
             txa
             ora     #IEC_DATA_o
             tay
-            
+
           ; Prepare to test DATA
             lda     #IEC_DATA_i
 
           ; Release DATA
             sty     IEC_OUTPUT_PORT
-            
+
           ; Test DATA
             and     IEC_INPUT_PORT
             bne     _out
-            
+
           ; Re-assert DATA if it's still low.
             stx     IEC_OUTPUT_PORT
-            
+
 _out
           ; Place the DATA state in the carry
             cmp     #1
-          
+
             ply
             plx
             pla
@@ -133,13 +155,14 @@ _out
             .pend
 
 init        .proc
+
             jsr     sleep_1ms
             stz     io_ctrl
             jsr     release_ATN
             jsr     release_DATA
             jsr     release_SREQ
             ;jsr     release_CLOCK   ; IDLE state
-            jsr     assert_CLOCK   ; IDLE state            
+            jsr     assert_CLOCK   ; IDLE state
             jsr     sleep_1ms
             jsr     sleep_1ms
             jsr     sleep_1ms
@@ -153,27 +176,51 @@ init        .proc
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Transaction routines
+IEC_DEBUG = false
 
             .section    dp  ; For rx_eoi, could be ,x
 self        .namespace
 eoi_pending .byte       ?
 rx_eoi      .fill       0   ; shared with mark
 mark        .byte       ?
+sleep20     .byte       ?
+jiffy       .byte       ?   ; jiffy support (0: no/not tested, <0: jiffy detected)
+temp        .byte       ?   ; bit assembly
+status      .byte       ?   ; last drive status
+            .if IEC_DEBUG
+col1        .byte       ?
+col2        .byte       ?
+            .endif
             .endn
             .send
 
             .section    kernel2
 
+DBG_CALL    .macro routine
+            .if IEC_DEBUG
+                jsr \routine
+            .endif
+            .endm
+
 init
     ; Initialize the port and make sure ATN and SREQ aren't stuck.
     ; Carry set on error.
 
+            pha
+            lda     #20
+            bit     $d6a7   ; MID
+            bpl     _iec_init
+            lda     #50
+_iec_init
+            sta     self.sleep20
+            pla
             jsr     platform.iec.port.init
-            jsr     debug_init
+            DBG_CALL debug_init
+            jsr     platform.jiffy.init
 
           ; Bail if ATN and SRQ fail to float back up.
           ; We'll have a more thorough test when we send
-          ; our first command.            
+          ; our first command.
             nop
             nop
             nop
@@ -189,8 +236,8 @@ init
 _err
             ;jsr     wtf
             sec
-            rts        
-            
+            rts
+
 wtf
             php
             phy
@@ -203,18 +250,19 @@ _loop       lda     _wtf,y
 _done       ply
             php
             rts
-_wtf        .text   "ATN line stuck low.", $0a, 0                                    
+_wtf        .text   "ATN line stuck low.", $0a, 0
 
 TALK
 
             ora     #$40
             jsr     flush
+            stz     self.jiffy         ; re-check for jiffy
             jmp     atn_release_data   ; NOTE: does NOT drop ATN!
 
 TALK_SA
             jsr     atn_common
 
-            sei            
+            sei
             jsr     platform.iec.port.assert_DATA
             jsr     platform.iec.port.release_ATN
             jsr     platform.iec.port.release_CLOCK
@@ -223,18 +271,19 @@ TALK_SA
             cli
             rts
 
-            
+
 LISTEN
 
             ora     #$20
             jsr     flush
+            stz     self.jiffy         ; re-check for jiffy
             jmp     atn_release_data   ; NOTE: does NOT drop ATN!
-            
+
 LISTEN_SA
             jsr     atn_common
             jsr     platform.iec.port.release_ATN
             cli
-            ; TODO: WARNING!  No delay here!  
+            ; TODO: WARNING!  No delay here!
             ; TODO: IMHO, should wait at least 100us to avoid accidental turn-around!
             ; TODO: tho we do protect against this in the send code.
             rts
@@ -246,9 +295,9 @@ UNTALK      ; Detangled from C64 sources; TODO: compare with Stef's
 
         ; There should never be a need to flush here, and if you
         ; do manage to call IECOUT between a TALK/TALKSA and an
-        ; UNTALK, the C64 will flush it while ATN is asserted and 
+        ; UNTALK, the C64 will flush it while ATN is asserted and
         ; the drive will be mighty confused.
-        ; 
+        ;
         ; TODO: track the state and cause calls to IECOUT to fail.
 
           ; pre-sets CLOCK IMMEDIATELY before the ATN ... again, TODO: makes no sense
@@ -264,7 +313,7 @@ UNLISTEN    ; Detangled from C64 sources; TODO: compare with Stef's
             lda     #$3f
             jsr     flush
             jmp atn_release
-            
+
 atn_release_data
 
             sei
@@ -274,9 +323,9 @@ atn_release_data
             jsr     atn_common  ; NOTE: does NOT release ATN!  Does NOT release IRQs!
             cli
             rts
-            
+
 atn_release
-            jsr     atn_common            
+            jsr     atn_common
 
             sei
             jsr     platform.iec.port.release_ATN
@@ -291,7 +340,7 @@ atn_release
 atn_common
         ; NOTE: at present, leaves IRQs disabled on success!
 
-          ; Assert ATN; if we aren't already in sending mode, 
+          ; Assert ATN; if we aren't already in sending mode,
           ; get there:
             sei
             jsr     platform.iec.port.assert_ATN
@@ -301,7 +350,7 @@ atn_common
 
           ; Now give the devices ~1ms to start listening.
             jsr     sleep_1ms
-            
+
           ; If no one is listening, there's nothing on
           ; the bus, so signal an error.
             jsr     platform.iec.port.read_DATA
@@ -309,8 +358,8 @@ atn_common
 
           ; ATN bytes are technically never EOI bytes
             stz     self.eoi_pending
-
-            jmp send_common           
+ 
+            jmp send_common
 
 _err
           ; Always release the ATN line on error; TODO: add post delay
@@ -320,7 +369,8 @@ _err
 
 send_eoi
 send_data_eoi
-   jsr  debug_last
+            DBG_CALL  debug_last
+            jsr waste_time
             jsr     set_eoi
             jmp     send
 
@@ -333,19 +383,25 @@ send
             jsr     send_common
             cli
             rts
-            
+
 send_common
     ; A = byte
     ; Assumes we are in the sending state:
     ; the host is asserting CLOCK and the devices are asserting DATA.
     ; This part of the code should be moved to the kernel thread.
 
-    jsr debug_write
 
           ; There must be at least 100us between bytes.
-            jsr     sleep_300us
+            jsr     sleep_100us
 
+            jsr     platform.iec.port.read_ATN
+            bcc     _not_jiffy
+            bit     self.jiffy
+            bpl     _not_jiffy
+            jmp     jiffy.send
+_not_jiffy
 
+            DBG_CALL debug_write
         ; Clever cheating
 
           ; Act as an ersatz listener to keep the other listeners busy
@@ -357,7 +413,7 @@ send_common
           ; We can do this without disabling interrupts because
           ; we are also asserting DATA.
             jsr     platform.iec.port.release_CLOCK
-            
+
         ; Now we wait for all of the listeners to acknowledge.
 _wait
           ; We're still asserting DATA.
@@ -374,25 +430,25 @@ _wait
             sei
             jsr     platform.iec.port.test_DATA
             bcs     _ready
-            
+
           ; Other listeners are still busy; go back to sleep.
             bra     _wait
 
 _ready
-  jsr debug_tick
+            DBG_CALL debug_tick
             bit     self.eoi_pending
             bpl     _send
             bmi     _eoi
 
 _eoi
         ; Alas, we can't get too clever here, or the 1541 hates us.
-        
+
         ; Hard-wait the 200us for the drive to acknowledge the EOI.
         ; This duration is technically unbounded, but the ersatz
         ; listener trick during the EOI signal, and the drive
         ; already had the opportunity to delay before starting the
         ; ack, so hopefully it will stay in nominal 250us range.
-        
+
 _Tye        jsr     platform.iec.port.read_DATA
             bcs     _Tye
 
@@ -417,16 +473,22 @@ _send
         ; least 20us (with 70us more typical for clock low).
 
             phx
-            ldx     #8
+            phy
+            ldx     #7
 _loop
-          ; Don't let an interrupt put space between the clock
-          ; and the data.
-            sei     ; Already true for the first bit.
-
         ; TODO: opt test for a frame error
 
+            bne     _send_bit
+            jsr     platform.iec.port.read_ATN
+            bcs     _send_bit
+            bit     self.jiffy
+            bmi     _send_bit
+            jsr     jiffy.detect
+
+_send_bit
           ; Clock out the next bit
             jsr     platform.iec.port.assert_CLOCK
+
             jsr     sleep_20us
             lsr     a
             bcs     _one
@@ -442,16 +504,16 @@ _clock
 
             jsr     sleep_20us  ; 1541 needs this.
             jsr     platform.iec.port.release_CLOCK
-
             jsr     sleep_20us
+            jsr     platform.iec.port.release_DATA
             dex
-            bne     _loop
+            bpl     _loop
+            ply
             plx
-            
+
           ; Finish the last bit and wait for the listeners to ack.
           ; Again do this synchronously.
             sei
-            jsr     platform.iec.port.release_DATA
             jsr     platform.iec.port.assert_CLOCK
 
         ; Now wait for listener ack.  Of course, if there are
@@ -463,15 +525,15 @@ _clock
     ; to completely change the code below.
 
 .if true
-        jsr     debug_test  ; T
+            ;DBG_CALL     debug_test  ; T
 _ack        jsr     platform.iec.port.read_DATA
             bcs     _ack
-        jsr     debug_ACK   ; A
+            ;DBG_CALL     debug_ACK   ; '
             clc
             rts
-.else            
+.else
           ; Timing here isn't critical
-            cli    
+            cli
 
           ; Test the port every 20us for up to 1ms.
             lda     #50
@@ -487,12 +549,12 @@ _done
 
 sleep_20us
             phx
-            ldx     #20
+            ldx     self.sleep20
 _loop       dex
             bne     _loop
             plx
             rts
-            
+
 sleep_100us
             phx
             ldx     #5
@@ -500,24 +562,24 @@ _loop       jsr     sleep_20us
             dex
             bne     _loop
             plx
-            rts                
+            rts
 
 sleep_300us
             jsr     sleep_100us
             jsr     sleep_100us
             jsr     sleep_100us
             rts
-            
+
 sleep_1ms
             jsr     sleep_300us
             jsr     sleep_300us
             jsr     sleep_300us
             jmp     sleep_100us
-            
+
 
 recv_data
-    
-    ;jsr debug_read    
+
+    DBG_CALL debug_read
 
         ; Assume not EOI until proved otherwise
             stz     self.rx_eoi
@@ -527,7 +589,7 @@ recv_data
 _wait1      jsr     platform.iec.port.read_CLOCK
             bcc     _wait1
 
-    ;jsr debug_tick
+    ;DBG_CALL debug_tick
 
 _ready
           ; Sadly, we must do the rests with interrupts disabled.
@@ -540,8 +602,8 @@ _ready
           ; Wait for all other listeners to signal
 _wait2      jsr     platform.iec.port.read_DATA
             bcc     _wait2
-    ;jsr debug_tick
-    
+    ;DBG_CALL debug_tick
+
           ; Wait for the first bit or an EOI condition
           ; Each iteration takes 6-7us
             lda     #0      ; counter
@@ -555,7 +617,7 @@ _eoi
             lda     self.rx_eoi
             bmi     _error
 
-    jsr debug_last
+    DBG_CALL debug_last
           ; Ack the EOI; we can enable IRQs for this.
             jsr     platform.iec.port.assert_DATA
             cli
@@ -563,11 +625,11 @@ _eoi
             jsr     sleep_20us
             jsr     sleep_20us
 
-          ; Set the EOI flag.  
+          ; Set the EOI flag.
             dec     self.rx_eoi ; TODO: error on second round
-          
+
           ; Go back to the ready state
-            bra     _ready            
+            bra     _ready
 
 _error
             cli
@@ -584,7 +646,7 @@ _wait_fall  jsr     platform.iec.port.read_CLOCK
 
 _wait_rise  jsr     platform.iec.port.read_CLOCK
             bcc     _wait_rise
-           
+
             jsr     platform.iec.port.read_DATA
             ror     a
             dex
@@ -603,9 +665,9 @@ _wait_rise  jsr     platform.iec.port.read_CLOCK
             jsr     sleep_20us  ; Seems to be missing the ack.
             jsr     sleep_20us  ; Seems to be missing the ack.
             jsr     sleep_20us  ; Seems to be missing the ack.
-            
-    ;jsr debug_ACK
-    jsr debug_write
+
+    ;DBG_CALL debug_ACK
+    DBG_CALL debug_write
 
           ; Return EOI in NV
             clc
@@ -635,8 +697,12 @@ IOINIT
 IECIN
     ; Receives a byte into A;
     ; NV set on EOI
+            bit     self.jiffy
+            bpl     _not_jiffy
+            jmp     jiffy.receive
+_not_jiffy
             jmp     recv_data
-            
+
 IECOUT
 
     ; Sends the byte in A.
@@ -656,7 +722,7 @@ IECOUT
         stz     delayed
 
       ; Queue the new byte
-_queue          
+_queue
         sta     queue
         dec     delayed
         rts
@@ -694,15 +760,15 @@ probe_device    ; Soft reset
 
         phy
         tay
-    
+
         jsr     LISTEN
         bcs     _out
 
         lda     #$0f
         jsr     DEV_RECV
         bcs     _out
-        
-        lda     #'U' 
+
+        lda     #'U'
         jsr     IECOUT
         lda     #'I'    ; TODO: test 'J' (hard) instead.
         jsr     IECOUT
@@ -711,7 +777,7 @@ probe_device    ; Soft reset
         tya
         jsr     UNLISTEN
         plp
-        
+
 _out
         ply
         rts
@@ -723,7 +789,7 @@ clear_status
 
         phy
         tay
-    
+
         jsr     TALK
         bcs     _out
 
@@ -731,30 +797,61 @@ clear_status
         lda     #$0f
         jsr     DEV_SEND
         bcs     _close
-        
+
+        stz     self.status
+        jsr     IECIN
+        bcs     _error
+
+        sec
+        sbc     #$30
+        asl     a
+        asl     a
+        asl     a
+        asl     a
+        sta     self.status
+
+        jsr     IECIN
+        bcs     _error
+
+        sec
+        sbc     #$30
+        tsb     self.status
+
 _loop
         jsr     IECIN
-        bcs     _close
+        bcs     _error
         bvc     _loop
-        
+        bra     _close
+
+_error
+        sec
+        lda     #$ff
+        sta     self.status
+
 _close
         php
+            DBG_CALL debug_test
         tya
         jsr     UNTALK
         plp
-        
+
 _out
         ply
+        lda     self.status
+        cmp     #0
         rts
 
+waste_time rts
+            
             .send
 
+.if IEC_DEBUG
             .section    dp
 screen      .word       ?
 read        .byte       ?
             .send
 
-            .section    kernel2            
+            .section    kernel2
 
 debug_init
             pha
@@ -762,20 +859,28 @@ debug_init
             stz     screen+0
             inc     screen+0
             sta     screen+1
+            lda     #$f1
+            sta     self.col1
+            lda     #$1f
+            sta     self.col2
             pla
             rts
 
 debug_write
-            stz     read
-        jsr     port.read_ATN   ; cs->high->not asserted
-        ror     read            ; underline->not asserted
-            jmp     print_hex
+            pha
+            lda     #$00
+            jsr     platform.iec.port.read_ATN   ; cs->high->not asserted
+            ror     a                            ; inverted->asserted
+            eor     #$80
+            sta     read
+            pla
+            ;jmp     print_hex
 
 print_hex
             php
             pha
             stz io_ctrl
-            jsr port.read_ATN
+            jsr platform.iec.port.read_ATN
             bcc _x
             jsr     debug_print
             bra     _done
@@ -786,13 +891,14 @@ _x
 _done
             pla
             plp
+            stz     read
             rts
 _hex
             pha
-            lsr     a            
-            lsr     a            
-            lsr     a            
-            lsr     a            
+            lsr     a
+            lsr     a
+            lsr     a
+            lsr     a
             jsr     _digit
             pla
             and     #$0f
@@ -806,7 +912,7 @@ _digit
             jmp     debug_print
 _digits     .text   "0123456789abcdef"
 
-debug_tick rts
+debug_tick
             php
             pha
             lda     #'.'
@@ -822,7 +928,7 @@ debug_ACK
             pla
             plp
             rts
-debug_EOI  rts
+debug_error
             php
             pha
             lda     #'E'
@@ -830,7 +936,7 @@ debug_EOI  rts
             pla
             plp
             rts
-              
+
 debug_last
             php
             pha
@@ -840,7 +946,7 @@ debug_last
             plp
             rts
 
-debug_test rts
+debug_test
             php
             pha
             lda     #'T'
@@ -848,8 +954,8 @@ debug_test rts
             pla
             plp
             rts
-                       
-debug_read rts
+
+debug_read  rts
             php
             pha
             lda     #'R'
@@ -857,24 +963,48 @@ debug_read rts
             pla
             plp
             rts
-                       
-debug_print rts
+
+debug_set_color
+            pha
+            sta     self.col1
+            asl     a
+            asl     a
+            asl     a
+            asl     a
+            sta     self.col2
+            pla
+            lsr     a
+            lsr     a
+            lsr     a
+            lsr     a
+            ora     self.col2
+            sta     self.col2
+            rts
+
+debug_print
             phy
             ldy     #2
             sty     io_ctrl
-            ora     read
-            eor     #$80
+            sta     (screen)
+            ldy     #3
+            sty     io_ctrl
+            lda     self.col1
+            bit     read
+            bpl     _setcol
+            lda     self.col2
+_setcol
             sta     (screen)
             stz     io_ctrl
             inc     screen
             bne     _out
             inc     screen+1
-_out            
+_out
             ply
             rts
-   
+
             .send
-            
+.endif
+
 
             .endn
             .endn

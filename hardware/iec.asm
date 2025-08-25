@@ -89,7 +89,7 @@ _loop       sta     channels,x
 
           ; Wait before enabling IEC operations.
             stz     awake
-            lda     #5
+            lda     #1
             jsr     kernel.clock.insert
 
             phy
