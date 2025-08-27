@@ -739,15 +739,16 @@ accept_seq
 adv_seq            
             pha
 
-          ; Update our copy of the sender's window
+          ; Update our copy of the sender's window.
+          ; If the window is >255 cap it at 255.
             ldy     #tcp.header.window
-            lda     (kernel.args.ptr),y
-            beq     _set
+            lda     #1
+            cmp     (kernel.args.ptr),y
             iny
             lda     (kernel.args.ptr),y
-            inc     a
-_set        dec     a            
-            ldy     #tcp.snd_wnd
+            bcc +
+            lda     #255
+          + ldy     #tcp.snd_wnd
             sta     (kernel.args.net.socket),y            
 
           ; Set carry if the header contains a SYN or RST
